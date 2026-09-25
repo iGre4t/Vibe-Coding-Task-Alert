@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Task Alarm</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #090909; color: #fff; }
+      main { width: min(420px, calc(100vw - 40px)); text-align: center; }
+      h1 { margin: 0 0 8px; font-size: 2rem; }
+      p { margin: 0 0 24px; color: #aaa; }
+      button { width: 100%; border: 0; border-radius: 16px; padding: 18px; font: inherit; font-weight: 800; color: white; background: #e52b20; cursor: pointer; }
+      button:active { transform: scale(.98); }
+      #status { margin-top: 16px; color: #7ee787; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Task Alarm</h1>
+      <p>This page rings whenever Codex finishes a task.</p>
+      <button id="enable" type="button">Enable alarm</button>
+      <div id="status" role="status">Waiting for permission</div>
+    </main>
+    <script>
+      const button = document.querySelector('#enable');
+      const status = document.querySelector('#status');
+      let audio;
+
+      function ring() {
+        if (!audio || audio.state !== 'running') return;
+        const start = audio.currentTime;
+        for (let index = 0; index < 8; index += 1) {
+          const oscillator = audio.createOscillator();
+          const gain = audio.createGain();
+          oscillator.type = 'square';
+          oscillator.frequency.value = index % 2 ? 880 : 660;
+          gain.gain.setValueAtTime(0.0001, start + index * 0.22);
+          gain.gain.exponentialRampToValueAtTime(1, start + index * 0.22 + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + index * 0.22 + 0.18);
+          oscillator.connect(gain).connect(audio.destination);
+          oscillator.start(start + index * 0.22);
+          oscillator.stop(start + index * 0.22 + 0.2);
+        }
+        status.textContent = 'Task finished — alarm sounded';
+      }
+
+      button.addEventListener('click', async () => {
+        audio ??= new AudioContext();
+        await audio.resume();
+        status.textContent = 'Alarm enabled and waiting';
+        button.textContent = 'Test alarm';
+        button.onclick = ring;
+      }, { once: true });
+
+      const events = new EventSource('/events');
+      events.addEventListener('ring', ring);
+      events.addEventListener('open', () => {
+        if (audio?.state === 'running') status.textContent = 'Alarm enabled and waiting';
+      });
+    </script>
+  </body>
+</html>
