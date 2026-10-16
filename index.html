@@ -13,12 +13,28 @@
       button { width: 100%; border: 0; border-radius: 16px; padding: 18px; font: inherit; font-weight: 800; color: white; background: #e52b20; cursor: pointer; }
       button:active { transform: scale(.98); }
       #status { margin-top: 16px; color: #7ee787; }
+      .settings { margin: 24px 0; padding: 20px; border: 1px solid #333; border-radius: 16px; text-align: left; }
+      label { display: block; margin-bottom: 14px; font-weight: 700; }
+      .volume-controls { display: flex; align-items: center; gap: 14px; }
+      input[type=range] { flex: 1; min-width: 0; accent-color: #e52b20; }
+      input[type=number] { width: 64px; padding: 10px; background: #171717; color: white; border: 1px solid #555; border-radius: 8px; font: inherit; }
+      .settings p { margin: 14px 0; font-size: .85rem; line-height: 1.5; }
+      .settings button { padding: 12px; background: #303030; }
+      button:disabled { opacity: .5; cursor: wait; }
+      #save-status { min-height: 1.5em; margin-top: 12px; font-size: .85rem; color: #aaa; }
     </style>
   </head>
   <body>
     <main>
       <h1>Task Alarm</h1>
       <p>This page rings whenever Codex finishes a task.</p>
+      <section class="settings" aria-label="Alarm settings">
+        <label for="volume">System volume during alarm</label>
+        <div class="volume-controls"><input id="volume" type="range" min="1" max="100" value="100" aria-label="Alarm volume slider" disabled /><input id="volume-number" type="number" min="1" max="100" step="1" value="100" aria-label="Alarm volume percentage" disabled /><span>%</span></div>
+        <p>Your system volume is set to this percentage while the alarm plays, then restored to its previous level.</p>
+        <button id="save" type="button" disabled>Save volume</button>
+        <div id="save-status" role="status">Loading settings…</div>
+      </section>
       <button id="enable" type="button">Enable alarm</button>
       <div id="status" role="status">Waiting for permission</div>
     </main>
@@ -26,6 +42,41 @@
       const button = document.querySelector('#enable');
       const status = document.querySelector('#status');
       let audio;
+      const slider = document.querySelector('#volume');
+      const number = document.querySelector('#volume-number');
+      const save = document.querySelector('#save');
+      const saveStatus = document.querySelector('#save-status');
+      slider.addEventListener('input', () => { number.value = slider.value; saveStatus.textContent = 'Unsaved changes'; });
+      number.addEventListener('input', () => { if (number.checkValidity()) slider.value = number.value; saveStatus.textContent = 'Unsaved changes'; });
+      async function loadSettings() {
+        try {
+          const response = await fetch('/settings');
+          if (!response.ok) throw new Error();
+          const settings = await response.json();
+          slider.value = number.value = settings.volumePercent;
+          slider.disabled = number.disabled = save.disabled = false;
+          saveStatus.textContent = 'Settings loaded';
+        } catch { saveStatus.textContent = 'Could not load settings. Reload to retry.'; }
+      }
+      save.addEventListener('click', async () => {
+        if (!number.reportValidity() || number.value === '') return;
+        save.disabled = slider.disabled = number.disabled = true;
+        try {
+          const response = await fetch('/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ volumePercent: Number(number.value) }) });
+          if (!response.ok) throw new Error();
+          saveStatus.textContent = `Saved: ${number.value}% system volume during alarms`;
+        } catch { saveStatus.textContent = 'Could not save. Please try again.'; }
+        finally { save.disabled = slider.disabled = number.disabled = false; }
+      });
+      void loadSettings();
+      async function testAlarm() {
+        button.disabled = true;
+        try {
+          const response = await fetch('/test', { method: 'POST' });
+          if (!response.ok) throw new Error();
+        } catch { status.textContent = 'Could not test alarm. Please try again.'; }
+        finally { button.disabled = false; }
+      }
 
       function ring() {
         if (!audio || audio.state !== 'running') return;
@@ -50,7 +101,7 @@
         await audio.resume();
         status.textContent = 'Alarm enabled and waiting';
         button.textContent = 'Test alarm';
-        button.onclick = ring;
+        button.onclick = testAlarm;
       }, { once: true });
 
       const events = new EventSource('/events');

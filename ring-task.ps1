@@ -1,4 +1,11 @@
 $ErrorActionPreference = 'Stop'
+$alarmPort = if ($env:TASK_ALARM_PORT) { [int]$env:TASK_ALARM_PORT } else { 47831 }
+$alarmUrl = "http://127.0.0.1:$alarmPort"
+$alarmSettings = Invoke-RestMethod -Method Get "$alarmUrl/settings" -TimeoutSec 5
+$alarmVolumePercent = $alarmSettings.volumePercent
+if (($alarmVolumePercent -isnot [int] -and $alarmVolumePercent -isnot [long]) -or $alarmVolumePercent -lt 1 -or $alarmVolumePercent -gt 100) {
+  throw 'Alarm volume must be a whole number between 1 and 100.'
+}
 
 if (-not ('TaskAlarm.Audio' -as [type])) {
   Add-Type -TypeDefinition @'
@@ -80,8 +87,8 @@ $previousMute = [TaskAlarm.Audio]::Muted
 
 try {
   [TaskAlarm.Audio]::Muted = $false
-  [TaskAlarm.Audio]::Volume = 1.0
-  Invoke-WebRequest -UseBasicParsing -Method Post 'http://127.0.0.1:47831/ring' -TimeoutSec 5 | Out-Null
+  [TaskAlarm.Audio]::Volume = $alarmVolumePercent / 100.0
+  Invoke-WebRequest -UseBasicParsing -Method Post "$alarmUrl/ring" -TimeoutSec 5 | Out-Null
   Start-Sleep -Milliseconds 2100
 }
 finally {
@@ -91,6 +98,7 @@ finally {
 
 [pscustomobject]@{
   Alarm = 'rung'
+  AlarmVolumePercent = $alarmVolumePercent
   PreviousVolumePercent = [math]::Round($previousVolume * 100)
   PreviousMute = $previousMute
   RestoredVolumePercent = [math]::Round([TaskAlarm.Audio]::Volume * 100)
