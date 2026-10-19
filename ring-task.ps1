@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$alarmPort = if ($env:TASK_ALARM_PORT) { [int]$env:TASK_ALARM_PORT } else { 47831 }
+$alarmPort = if ($env:TASK_ALARM_PORT) { [int]$env:TASK_ALARM_PORT } else { 47833 }
 $alarmUrl = "http://127.0.0.1:$alarmPort"
 $alarmSettings = Invoke-RestMethod -Method Get "$alarmUrl/settings" -TimeoutSec 5
 $alarmVolumePercent = $alarmSettings.volumePercent

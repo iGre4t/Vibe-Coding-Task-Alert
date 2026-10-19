@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { readFile, writeFile, rename } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 
-const port = Number(process.env.TASK_ALARM_PORT ?? 47831);
+const port = Number(process.env.TASK_ALARM_PORT ?? 47833);
 const pagePath = fileURLToPath(new URL('./index.html', import.meta.url));
 const listeners = new Set();
 const settingsPath = fileURLToPath(new URL('./settings.json', import.meta.url));
@@ -54,7 +54,7 @@ createServer(async (request, response) => {
   if (request.method === 'POST' && request.url === '/test') {
     if (testing) { json(response, 409, { error: 'Alarm is already playing' }); return; }
     testing = true;
-    execFile('powershell.exe', ['-NoProfile', '-File', scriptPath], { windowsHide: true, timeout: 15000, env: { ...process.env, TASK_ALARM_PORT: String(port) } }, error => {
+    execFile('pwsh.exe', ['-NoProfile', '-File', scriptPath], { windowsHide: true, timeout: 15000, env: { ...process.env, TASK_ALARM_PORT: String(port) } }, error => {
       testing = false;
       json(response, error ? 500 : 200, error ? { error: 'Could not play alarm' } : { success: true });
     });
